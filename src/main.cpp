@@ -5,9 +5,11 @@
 #include "serialATmega.h"
 
 
-#define NUM_TASKS 3 //TODO: Change to the number of tasks being used
+#define NUM_TASKS 4 //TODO: Change to the number of tasks being used
 unsigned char i;
 unsigned char j;
+unsigned char up;
+unsigned char displacement;
 
 //Task struct for concurrent synchSMs implmentations
 typedef struct _task{
@@ -23,6 +25,7 @@ typedef struct _task{
 const unsigned long Left_Period = 1000;
 const unsigned long Right_Period = 1000;
 const unsigned long Horn_Period = 1000;
+const unsigned long Increase_Period = 1000;
 const unsigned long GCD_PERIOD = findGCD(Right_Period, Left_Period);//TODO:Set the GCD Period
 
 task tasks[NUM_TASKS]; // declared task array with 5 tasks
@@ -48,8 +51,11 @@ int TickFtn_left(int state);
 enum right_state{idle_right, Right_One, Right_Two, Right_Three};
 int TickFtn_right(int state);
 
-enum horn_period{horn_off, horn_on};
+enum horn_state{horn_off, horn_on};
 int TickFtn_horn(int state);
+
+enum increase_state{idle_JS, Up_JS};
+int TickFtn_increase(int state);
 
 int main(void) {
     //TODO: initialize all your inputs and ouputs
@@ -346,4 +352,27 @@ int TickFtn_horn(int state){
         break;
     }
     return state;
+}
+
+// enum increase_state{idle_JS, Up_JS};
+int TickFtn_increase(int state){
+    switch (state)
+    {
+    case idle_JS:
+        if(ADC_read(0) >= 650){
+            state = Up_JS;
+        }
+        else{
+            state = idle_JS;
+        }
+        break;
+    case Up_JS:
+        if(ADC_read(0) < 650){
+            state = idle_JS;
+        } 
+        break;
+    
+    default:
+        break;
+    }
 }
