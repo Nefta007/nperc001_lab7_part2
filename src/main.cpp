@@ -8,11 +8,13 @@
 #define NUM_TASKS 5 //TODO: Change to the number of tasks being used
 unsigned char i;
 unsigned char j;
+unsigned char k;
 unsigned char up;
 unsigned char displacement_up;
 unsigned char displacement_down;
-unsigned char curr_val;
+unsigned char cnt;
 unsigned char motor_on;
+unsigned char speed;
 
 //Task struct for concurrent synchSMs implmentations
 typedef struct _task{
@@ -28,8 +30,9 @@ typedef struct _task{
 const unsigned long Left_Period = 1000;
 const unsigned long Right_Period = 1000;
 const unsigned long Horn_Period = 1000;
-const unsigned long Increase_Period = 500;
+const unsigned long Increase_Period = 1;
 const unsigned long Decrease_Period = 500;
+// const unsigned long Direction_Period = 500;
 const unsigned long GCD_PERIOD = findGCD(Right_Period, Increase_Period);//TODO:Set the GCD Period
 
 task tasks[NUM_TASKS]; // declared task array with 5 tasks
@@ -64,6 +67,9 @@ int TickFtn_increase(int state);
 enum decrease_state{idle_JS_D, Down_JS};
 int TickFtn_decrease(int state);
 
+// enum direction_state{idle_direction, CW_Direction, CCW_Direction};
+// int TickFtn_direction(int state);
+
 int main(void) {
     //TODO: initialize all your inputs and ouputs
 
@@ -79,6 +85,13 @@ int main(void) {
     OCR0A = 128; //sets duty cycle to 50% since TOP is always 256
 
     //TODO: Initialize the servo timer/pwm(timer1)
+    TCCR1A |= (1 << WGM11) | (1 << COM1A1); //COM1A1 sets it to channel A
+    TCCR1B |= (1 << WGM12) | (1 << WGM13) | (1 << CS11); //CS11 sets the prescaler to be 8
+    //WGM11, WGM12, WGM13 set timer to fast pwm mode
+
+    ICR1 = 39999; //20ms pwm period
+
+    OCR1A =  1999/* set your value here */ ;
 
 
     //TODO: Initialize tasks here
@@ -121,7 +134,14 @@ int main(void) {
     tasks[i].period = Decrease_Period;
     tasks[i].elapsedTime = tasks[i].period;
     tasks[i].TickFct = &TickFtn_decrease;
+    i++;
 
+    //task 6
+    // tasks[i].state = idle_direction;
+    // tasks[i].period = Direction_Period;
+    // tasks[i].elapsedTime = tasks[i].period;
+    // tasks[i].TickFct = &TickFtn_direction;
+    // i++;
     TimerSet(GCD_PERIOD);
     TimerOn();
 
@@ -382,7 +402,8 @@ int TickFtn_increase(int state){
     case idle_JS_U:
         if(ADC_read(0) >= 600){
             displacement_up = 0;
-            motor_on = 0;
+            k = 0;
+            cnt = 0;
             state = Up_JS;
         }
         else{
@@ -392,9 +413,13 @@ int TickFtn_increase(int state){
     case Up_JS:
         if(ADC_read(0) < 600){
             displacement_up = 0;
-            motor_on = 0;
+            k = 0;
+            cnt = 0;
             state = idle_JS_U;
         } 
+        else{
+            state = Up_JS;
+        }
         break;
     
     default:
@@ -408,7 +433,16 @@ int TickFtn_increase(int state){
     case Up_JS:
         motor_on = 1;
         displacement_up = map_value(600, 1023, 2, 30, ADC_read(0));
-        serial_println(displacement_up);
+        speed = 32 - displacement_up;
+        cnt++;
+        if(cnt >= speed){
+            PORTB = (PORTB & 0x03) | stages[k] << 2;
+            k++;
+            if(k > 7){
+                k = 0;
+            }
+        }
+        serial_println(speed);
         break;
     
     default:
@@ -438,6 +472,9 @@ int TickFtn_decrease(int state){
             motor_on = 0;
             state = idle_JS_D;
         } 
+        else{
+            state = Down_JS;
+        }
         break;
     default:
         break;
@@ -449,7 +486,7 @@ int TickFtn_decrease(int state){
         break;
     case Down_JS:
         motor_on = 1;
-        displacement_down = map_value(15, 400, 2, 30, ADC_read(0));
+        displacement_down = map_value(0, 400, 2, 30, ADC_read(0));
         serial_println(displacement_down);
         break;
     default:
@@ -457,3 +494,84 @@ int TickFtn_decrease(int state){
     }
     return state;
 }
+
+// enum direction_state{idle_direction, CW_Direction, CCW_Direction};
+// int TickFtn_direction(int state){
+//     switch (state)
+//     {
+//     case idle_direction:
+//         if(ADC_read(0) >= 600){
+//             k = 0;
+//             cnt = 0;
+//             speed = 32 - displacement_up;
+//             state = CW_Direction;
+//         }
+//         else if(ADC_read(0) <=400){
+//             k = 0;
+//             cnt = 0;
+//             speed = displacement_down;
+//             state = CCW_Direction;
+//         }
+//         else{
+//             state = idle_direction;
+//         }
+//         break;
+    
+//     case CW_Direction:
+//         if(ADC_read(0) < 600){
+//             k = 0;
+//             cnt = 0;
+//             speed = 0;
+//             state = idle_direction;
+//         }
+//         else{
+//             state = CW_Direction;
+//         }
+//     break;
+
+//     case CCW_Direction:
+//         if(ADC_read(0) > 400){
+//             k = 0;
+//             cnt = 0;
+//             speed = 0;
+//             state = idle_direction;
+//         }
+//         else{
+//             state = CCW_Direction;
+//         }
+//     break;
+    
+//     default:
+//         break;
+//     }
+
+//     switch (state)
+//     {
+//     case idle_direction:
+//         break;
+    
+//     case CW_Direction:
+//         cnt++;
+//         if(cnt >= speed){
+//             PORTB = (PORTB & 0x03) | stages[k] << 2;
+//             k++;
+//             if(k > 7){
+//                 k = 0;
+//             }
+//         }
+//     break;
+
+//     case CCW_Direction:
+//         cnt++;
+//         if(cnt >= speed){
+//             PORTB = (PORTB & 0x03) | stages[k] << 2;
+//             k--;
+//             if(k > 7){
+//                 k = 0;
+//             }
+//         }
+//     break;
+//     default:
+//         break;
+//     }
+// }
