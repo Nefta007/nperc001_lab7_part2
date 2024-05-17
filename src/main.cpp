@@ -5,11 +5,14 @@
 #include "serialATmega.h"
 
 
-#define NUM_TASKS 4 //TODO: Change to the number of tasks being used
+#define NUM_TASKS 5 //TODO: Change to the number of tasks being used
 unsigned char i;
 unsigned char j;
 unsigned char up;
-unsigned char displacement;
+unsigned char displacement_up;
+unsigned char displacement_down;
+unsigned char curr_val;
+unsigned char motor_on;
 
 //Task struct for concurrent synchSMs implmentations
 typedef struct _task{
@@ -25,8 +28,9 @@ typedef struct _task{
 const unsigned long Left_Period = 1000;
 const unsigned long Right_Period = 1000;
 const unsigned long Horn_Period = 1000;
-const unsigned long Increase_Period = 1000;
-const unsigned long GCD_PERIOD = findGCD(Right_Period, Left_Period);//TODO:Set the GCD Period
+const unsigned long Increase_Period = 500;
+const unsigned long Decrease_Period = 500;
+const unsigned long GCD_PERIOD = findGCD(Right_Period, Increase_Period);//TODO:Set the GCD Period
 
 task tasks[NUM_TASKS]; // declared task array with 5 tasks
 
@@ -54,8 +58,11 @@ int TickFtn_right(int state);
 enum horn_state{horn_off, horn_on};
 int TickFtn_horn(int state);
 
-enum increase_state{idle_JS, Up_JS};
+enum increase_state{idle_JS_U, Up_JS};
 int TickFtn_increase(int state);
+
+enum decrease_state{idle_JS_D, Down_JS};
+int TickFtn_decrease(int state);
 
 int main(void) {
     //TODO: initialize all your inputs and ouputs
@@ -100,6 +107,20 @@ int main(void) {
     tasks[i].period = Horn_Period;
     tasks[i].elapsedTime = tasks[i].period;
     tasks[i].TickFct = &TickFtn_horn;
+    i++;
+
+    //task 4
+    tasks[i].state = idle_JS_U;
+    tasks[i].period = Increase_Period;
+    tasks[i].elapsedTime = tasks[i].period;
+    tasks[i].TickFct = &TickFtn_increase;
+    i++;
+
+    //task 5
+    tasks[i].state = idle_JS_D;
+    tasks[i].period = Decrease_Period;
+    tasks[i].elapsedTime = tasks[i].period;
+    tasks[i].TickFct = &TickFtn_decrease;
 
     TimerSet(GCD_PERIOD);
     TimerOn();
@@ -354,25 +375,85 @@ int TickFtn_horn(int state){
     return state;
 }
 
-// enum increase_state{idle_JS, Up_JS};
+// enum increase_state{idle_JS_U, Up_JS};
 int TickFtn_increase(int state){
     switch (state)
     {
-    case idle_JS:
-        if(ADC_read(0) >= 650){
+    case idle_JS_U:
+        if(ADC_read(0) >= 600){
+            displacement_up = 0;
+            motor_on = 0;
             state = Up_JS;
         }
         else{
-            state = idle_JS;
+            state = idle_JS_U;
         }
         break;
     case Up_JS:
-        if(ADC_read(0) < 650){
-            state = idle_JS;
+        if(ADC_read(0) < 600){
+            displacement_up = 0;
+            motor_on = 0;
+            state = idle_JS_U;
         } 
         break;
     
     default:
         break;
     }
+
+    switch (state)
+    {
+    case idle_JS_U:
+        break;
+    case Up_JS:
+        motor_on = 1;
+        displacement_up = map_value(600, 1023, 2, 30, ADC_read(0));
+        serial_println(displacement_up);
+        break;
+    
+    default:
+        break;
+    }
+    return state;
+}
+
+
+// enum decrease_state{idle_JS_D, Down_JS};
+int TickFtn_decrease(int state){
+    switch (state)
+    {
+    case idle_JS_D:
+        if(ADC_read(0) <= 400){
+            displacement_down = 0;
+            motor_on = 0;
+            state = Down_JS;
+        }
+        else{
+            state = idle_JS_D;
+        }
+        break;
+    case Down_JS:
+        if(ADC_read(0) > 400){
+            displacement_down = 0;
+            motor_on = 0;
+            state = idle_JS_D;
+        } 
+        break;
+    default:
+        break;
+    }
+
+    switch (state)
+    {
+    case idle_JS_D:
+        break;
+    case Down_JS:
+        motor_on = 1;
+        displacement_down = map_value(15, 400, 2, 30, ADC_read(0));
+        serial_println(displacement_down);
+        break;
+    default:
+        break;
+    }
+    return state;
 }
