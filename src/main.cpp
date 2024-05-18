@@ -5,7 +5,7 @@
 #include "serialATmega.h"
 
 
-#define NUM_TASKS 6 //TODO: Change to the number of tasks being used
+#define NUM_TASKS 5 //TODO: Change to the number of tasks being used
 unsigned char i;
 unsigned char j;
 unsigned char on;
@@ -33,7 +33,6 @@ const unsigned long Right_Period = 1000;
 const unsigned long Horn_Period = 1000;
 const unsigned long Increase_Period = 1;
 const unsigned long Decrease_Period = 1;
-const unsigned long Servo_Period = 1;
 // const unsigned long Direction_Period = 500;
 const unsigned long GCD_PERIOD = findGCD(Right_Period, Increase_Period);//TODO:Set the GCD Period
 
@@ -68,9 +67,6 @@ int TickFtn_increase(int state);
 
 enum decrease_state{idle_JS_D, Down_JS};
 int TickFtn_decrease(int state);
-
-enum  servo_state{ idle_servo, servo_right, servo_left};
-int TickFtn_servo(int state);
 
 // enum direction_state{idle_direction, CW_Direction, CCW_Direction};
 // int TickFtn_direction(int state);
@@ -140,12 +136,6 @@ int main(void) {
     tasks[i].elapsedTime = tasks[i].period;
     tasks[i].TickFct = &TickFtn_decrease;
     i++;
-
-    //task 6
-    tasks[i].state = idle_servo;
-    tasks[i].period = Servo_Period;
-    tasks[i].elapsedTime = tasks[i].period;
-    tasks[i].TickFct = &TickFtn_servo;    
 
     //task 6
     // tasks[i].state = idle_direction;
@@ -526,6 +516,3 @@ int TickFtn_decrease(int state){
     }
     return state;
 }
-
-// enum  servo_state{ idle_servo, servo_right, servo_left};
-int TickFtn_servo(int state){}
