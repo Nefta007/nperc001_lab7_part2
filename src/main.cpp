@@ -16,7 +16,7 @@ unsigned char displacement_down;
 unsigned char cnt;
 unsigned char motor_on;
 unsigned char speed;
-
+unsigned int sound_cnt;
 //Task struct for concurrent synchSMs implmentations
 typedef struct _task{
 	signed 	 char state; 		//Task's current state
@@ -448,9 +448,9 @@ int TickFtn_increase(int state){
         cnt++;
         if(cnt >= speed){
             PORTB = (PORTB & 0x03) | stages[k] << 2;
-            k++;
-            if(k > 7){
-                k = 0;
+            k--;
+            if(k <0){
+                k = 7;
             }
         }
         serial_println(speed);
@@ -473,6 +473,7 @@ int TickFtn_decrease(int state){
             k = 0;
             cnt = 0;
             state = Down_JS;
+            sound_cnt = 0;
         }
         else{
             state = idle_JS_D;
@@ -486,6 +487,7 @@ int TickFtn_decrease(int state){
             state = idle_JS_D;
         } 
         else{
+            sound_cnt++;
             state = Down_JS;
         }
         break;
@@ -498,15 +500,26 @@ int TickFtn_decrease(int state){
     case idle_JS_D:
         break;
     case Down_JS:
+        if(sound_cnt >= 500 && sound_cnt <=1000){
+            TCCR0A |= (1 << COM0A1);// use Channel A
+            TCCR0A |= (1 << WGM01) | (1 << WGM00);// set fast PWM Mode
+            TCCR0B = (TCCR0B & 0xF8) | 0x00; //set prescaler to 8
+        }
+        else if(sound_cnt > 1000){
+            TCCR0A |= (1 << COM0A1);// use Channel A
+            TCCR0A |= (1 << WGM01) | (1 << WGM00);// set fast PWM Mode
+            TCCR0B = (TCCR0B & 0xF8) | 0x04; //set prescaler to 8
+            sound_cnt = 0;
+        }
         motor_on = 1;
         displacement_down = map_value(0, 400, 2, 30, ADC_read(0));
         speed = displacement_down;
         cnt++;
         if(cnt >= speed){
             PORTB = (PORTB & 0x03) | stages[k] << 2;
-            k--;
-            if(k < 0){
-                k = 7;
+            k++;
+            if(k > 7){
+                k = 0;
             }
         }
         serial_println(speed);
