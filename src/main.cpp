@@ -5,10 +5,11 @@
 #include "serialATmega.h"
 
 
-#define NUM_TASKS 5 //TODO: Change to the number of tasks being used
+#define NUM_TASKS 6 //TODO: Change to the number of tasks being used
 unsigned char i;
 unsigned char j;
-unsigned char k;
+unsigned char on;
+char k;
 unsigned char up;
 unsigned char displacement_up;
 unsigned char displacement_down;
@@ -31,7 +32,8 @@ const unsigned long Left_Period = 1000;
 const unsigned long Right_Period = 1000;
 const unsigned long Horn_Period = 1000;
 const unsigned long Increase_Period = 1;
-const unsigned long Decrease_Period = 500;
+const unsigned long Decrease_Period = 1;
+const unsigned long Servo_Period = 1;
 // const unsigned long Direction_Period = 500;
 const unsigned long GCD_PERIOD = findGCD(Right_Period, Increase_Period);//TODO:Set the GCD Period
 
@@ -66,6 +68,9 @@ int TickFtn_increase(int state);
 
 enum decrease_state{idle_JS_D, Down_JS};
 int TickFtn_decrease(int state);
+
+enum  servo_state{ idle_servo, servo_right, servo_left};
+int TickFtn_servo(int state);
 
 // enum direction_state{idle_direction, CW_Direction, CCW_Direction};
 // int TickFtn_direction(int state);
@@ -137,6 +142,12 @@ int main(void) {
     i++;
 
     //task 6
+    tasks[i].state = idle_servo;
+    tasks[i].period = Servo_Period;
+    tasks[i].elapsedTime = tasks[i].period;
+    tasks[i].TickFct = &TickFtn_servo;    
+
+    //task 6
     // tasks[i].state = idle_direction;
     // tasks[i].period = Direction_Period;
     // tasks[i].elapsedTime = tasks[i].period;
@@ -156,8 +167,9 @@ int TickFtn_left(int state){
     {
     case idle_left:
     // does not require the ! mark when pressed check code to see for bugs
-        if(((PINC >> 3) & 0x01)){
+        if(((PINC >> 3) & 0x01) && !on){
             i = 0;
+            on = 1;
             state = Left_One;
         }
         else{
@@ -176,6 +188,7 @@ int TickFtn_left(int state){
         }
         else if(!((PINC >> 3) & 0x01)){
             i = 0;
+            on = 0;
             state = idle_left;
         }
     break;
@@ -190,6 +203,7 @@ int TickFtn_left(int state){
         }
         else if(!((PINC >> 3) & 0x01)){
             i = 0;
+            on = 0;
             state = idle_left;
         }
     break;
@@ -202,6 +216,7 @@ int TickFtn_left(int state){
             state = Left_One;
         }
         else if(!((PINC >> 3) & 0x01)){
+            on = 0;
             state = idle_left;
         }
     break;
@@ -213,6 +228,7 @@ int TickFtn_left(int state){
     switch (state)
     {
     case idle_left:
+    serial_println(on);
         PORTB = SetBit(PORTB,0,0);
         PORTD = SetBit(PORTD,7,0);
         PORTD = SetBit(PORTD,5,0);
@@ -233,6 +249,7 @@ int TickFtn_left(int state){
     break;
 
     case Left_Three:
+    serial_println(on);
         PORTD = SetBit(PORTD,5,1);
         if(i < 1){
             i++;
@@ -257,8 +274,9 @@ int TickFtn_right(int state){
     {
     case idle_right:
     // does not require the ! mark when pressed check code to see for bugs
-        if(((PINC >> 4) & 0x01)){
+        if(((PINC >> 4) & 0x01) && !on){
             j = 0;
+            on = 1;
             state = Right_One;
         }
         else{
@@ -277,6 +295,7 @@ int TickFtn_right(int state){
         }
         else if(!((PINC >> 4) & 0x01)){
             j = 0;
+            on = 0;
             state = idle_right;
         }
     break;
@@ -291,6 +310,7 @@ int TickFtn_right(int state){
         }
         else if(!((PINC >> 4) & 0x01)){
             j = 0;
+            on = 0;
             state = idle_right;
         }
     break;
@@ -303,6 +323,7 @@ int TickFtn_right(int state){
             state = Right_One;
         }
         else if(!((PINC >> 4) & 0x01)){
+            on = 0;
             state = idle_right;
         }
     break;
@@ -459,7 +480,8 @@ int TickFtn_decrease(int state){
     case idle_JS_D:
         if(ADC_read(0) <= 400){
             displacement_down = 0;
-            motor_on = 0;
+            k = 0;
+            cnt = 0;
             state = Down_JS;
         }
         else{
@@ -469,7 +491,8 @@ int TickFtn_decrease(int state){
     case Down_JS:
         if(ADC_read(0) > 400){
             displacement_down = 0;
-            motor_on = 0;
+            k = 0;
+            cnt = 0;
             state = idle_JS_D;
         } 
         else{
@@ -487,7 +510,16 @@ int TickFtn_decrease(int state){
     case Down_JS:
         motor_on = 1;
         displacement_down = map_value(0, 400, 2, 30, ADC_read(0));
-        serial_println(displacement_down);
+        speed = displacement_down;
+        cnt++;
+        if(cnt >= speed){
+            PORTB = (PORTB & 0x03) | stages[k] << 2;
+            k--;
+            if(k < 0){
+                k = 7;
+            }
+        }
+        serial_println(speed);
         break;
     default:
         break;
@@ -495,83 +527,5 @@ int TickFtn_decrease(int state){
     return state;
 }
 
-// enum direction_state{idle_direction, CW_Direction, CCW_Direction};
-// int TickFtn_direction(int state){
-//     switch (state)
-//     {
-//     case idle_direction:
-//         if(ADC_read(0) >= 600){
-//             k = 0;
-//             cnt = 0;
-//             speed = 32 - displacement_up;
-//             state = CW_Direction;
-//         }
-//         else if(ADC_read(0) <=400){
-//             k = 0;
-//             cnt = 0;
-//             speed = displacement_down;
-//             state = CCW_Direction;
-//         }
-//         else{
-//             state = idle_direction;
-//         }
-//         break;
-    
-//     case CW_Direction:
-//         if(ADC_read(0) < 600){
-//             k = 0;
-//             cnt = 0;
-//             speed = 0;
-//             state = idle_direction;
-//         }
-//         else{
-//             state = CW_Direction;
-//         }
-//     break;
-
-//     case CCW_Direction:
-//         if(ADC_read(0) > 400){
-//             k = 0;
-//             cnt = 0;
-//             speed = 0;
-//             state = idle_direction;
-//         }
-//         else{
-//             state = CCW_Direction;
-//         }
-//     break;
-    
-//     default:
-//         break;
-//     }
-
-//     switch (state)
-//     {
-//     case idle_direction:
-//         break;
-    
-//     case CW_Direction:
-//         cnt++;
-//         if(cnt >= speed){
-//             PORTB = (PORTB & 0x03) | stages[k] << 2;
-//             k++;
-//             if(k > 7){
-//                 k = 0;
-//             }
-//         }
-//     break;
-
-//     case CCW_Direction:
-//         cnt++;
-//         if(cnt >= speed){
-//             PORTB = (PORTB & 0x03) | stages[k] << 2;
-//             k--;
-//             if(k > 7){
-//                 k = 0;
-//             }
-//         }
-//     break;
-//     default:
-//         break;
-//     }
-// }
+// enum  servo_state{ idle_servo, servo_right, servo_left};
+int TickFtn_servo(int state){}
